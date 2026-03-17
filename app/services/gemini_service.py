@@ -1,5 +1,6 @@
 import re
 import logging
+from functools import lru_cache
 import google.generativeai as genai
 from ..core.config import get_settings
 from .firestore_service import get_latest_prices, get_stock_info
@@ -54,7 +55,8 @@ def build_stock_context(stock_data: dict) -> str:
     return "\n".join(parts)
 
 
-def _build_gemini_client():
+@lru_cache(maxsize=1)
+def _get_gemini_model() -> genai.GenerativeModel:
     settings = get_settings()
     genai.configure(api_key=settings.gemini_api_key)
     return genai.GenerativeModel(
@@ -81,7 +83,7 @@ def chat_with_context(user_message: str, history: list[dict] | None = None) -> s
     else:
         full_message = user_message
 
-    model = _build_gemini_client()
+    model = _get_gemini_model()
     gemini_history = [
         {
             "role": "user" if msg["role"] == "user" else "model",
