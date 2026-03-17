@@ -1,2 +1,32 @@
-from fastapi import APIRouter
+import uuid
+import logging
+from fastapi import APIRouter, HTTPException, Header
+from ..models.chat import ChatRequest, ChatResponse
+from ..services import gemini_service
+from ..services import firestore_service
+from ..core.firebase import verify_token
+
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+@router.post("", response_model=ChatResponse)
+async def chat(
+    request: ChatRequest,
+    authorization: str | None = Header(default=None),
+):
+    uid = verify_token(authorization)
+    chat_id = request.chat_id or str(uuid.uuid4())
+
+    try:
+        history = [{"role": m.role, "content": m.content} for m in request.history]
+        reply = gemini_service.chat_with_context(request.message, history)
+        symbols = gemini_service.extract_symbols(request.message)
+        firestore_service.save_chat_message(uid, chat_id, "user", request.message)
+        firestore_service.save_chat_message(uid, chat_id, "assistant", reply)
+        return ChatResponse(reply=reply, chat_id=chat_id, symbols_mentioned=symbols)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Chat error for uid=%s: %s", uid, e)
+        raise HTTPException(status_code=500, detail="Lỗi xử lý câu hỏi")
