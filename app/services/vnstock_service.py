@@ -17,7 +17,7 @@ def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list
     """Fetch daily OHLCV history for a stock symbol."""
     try:
         stock = Vnstock().stock(symbol=symbol, source="VCI")
-        df = stock.quote().history(start=start_date, end=end_date, interval="1D")
+        df = stock.quote.history(start=start_date, end=end_date, interval="1D")
         if df is None or df.empty:
             logger.warning("Empty history for %s (%s to %s)", symbol, start_date, end_date)
             return []
@@ -49,7 +49,7 @@ def get_stock_company_info(symbol: str) -> dict:
     """Fetch company overview info for a stock symbol."""
     try:
         stock = Vnstock().stock(symbol=symbol, source="VCI")
-        df = stock.company().overview()
+        df = stock.company.overview()
         if df is None or df.empty:
             return {"symbol": symbol}
         row = df.iloc[0]
