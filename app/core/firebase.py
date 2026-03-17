@@ -1,7 +1,10 @@
+import logging
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 from fastapi import HTTPException
 from .config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def init_firebase():
@@ -32,9 +35,10 @@ def verify_token(authorization: str | None) -> str:
     """Verify Firebase ID token and return uid."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
-    token = authorization.replace("Bearer ", "")
+    token = authorization.split(" ", 1)[1]
     try:
         decoded = auth.verify_id_token(token)
         return decoded["uid"]
-    except Exception:
+    except Exception as e:
+        logger.warning("Token verification failed: %s", e)
         raise HTTPException(status_code=401, detail="Invalid token")
