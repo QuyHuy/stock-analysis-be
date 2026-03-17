@@ -50,7 +50,10 @@ async def delete_alert(
     alert_id: str,
     authorization: str | None = Header(default=None),
 ):
-    verify_token(authorization)
+    uid = verify_token(authorization)
+    doc = firebase.get_db().collection("alerts").document(alert_id).get()
+    if not doc.exists or doc.to_dict().get("uid") != uid:
+        raise HTTPException(status_code=404, detail="Alert not found")
     firestore_service.deactivate_alert(alert_id)
 
 

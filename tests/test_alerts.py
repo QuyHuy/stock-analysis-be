@@ -43,6 +43,14 @@ def test_list_alerts_requires_auth():
     assert response.status_code == 401
 
 
+def test_delete_alert_requires_auth():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    response = client.delete("/alerts/some-id")
+    assert response.status_code == 401
+
+
 def test_check_alerts_endpoint():
     from fastapi.testclient import TestClient
     from app.main import app

@@ -38,8 +38,10 @@ def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list
 
 def get_stock_current_price(symbol: str) -> float | None:
     """Fetch the most recent closing price for a stock."""
-    today = datetime.now().strftime("%Y-%m-%d")
-    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    week_ago = (now - timedelta(days=7)).strftime("%Y-%m-%d")
     records = get_stock_price_history(symbol, week_ago, today)
     if records:
         return records[-1]["close"]
