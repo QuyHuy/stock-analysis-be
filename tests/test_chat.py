@@ -18,19 +18,17 @@ def test_extract_symbols_filters_common_words():
 
 
 def test_build_stock_context_with_data():
-    from app.services.gemini_service import build_stock_context
-    stock_data = {
-        "info": {"symbol": "VNM", "name": "Vinamilk", "exchange": "HOSE"},
-        "history": [{"date": "2026-03-17", "open": 79.0, "high": 82.0, "low": 78.0, "close": 81.0, "volume": 1000000}],
-    }
-    context = build_stock_context(stock_data)
+    from app.services.gemini_service import build_technical_context
+    info = {"symbol": "VNM", "name": "Vinamilk", "exchange": "HOSE"}
+    history = [{"date": "2026-03-17", "open": 79.0, "high": 82.0, "low": 78.0, "close": 81.0, "volume": 1000000}]
+    context = build_technical_context("VNM", info, history)
     assert "VNM" in context
     assert "81" in context  # close price
 
 
 def test_build_stock_context_empty_returns_string():
-    from app.services.gemini_service import build_stock_context
-    context = build_stock_context({})
+    from app.services.gemini_service import build_technical_context
+    context = build_technical_context("VNM", {}, [])
     assert isinstance(context, str)
     assert len(context) > 0
 
