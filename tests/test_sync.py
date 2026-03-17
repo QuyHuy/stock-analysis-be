@@ -37,10 +37,11 @@ def test_get_stock_current_price_returns_float():
     assert result == 81.5
 
 
-def test_sync_endpoint_returns_202():
+def test_sync_endpoint_returns_200():
     from fastapi.testclient import TestClient
     from app.main import app
-    client = TestClient(app)
-    response = client.post("/sync")
+    with patch("app.services.vnstock_service.Vnstock"):
+        client = TestClient(app)
+        response = client.post("/sync")
     assert response.status_code == 200
     assert "Sync started" in response.json()["message"]
