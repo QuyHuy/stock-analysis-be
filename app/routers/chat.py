@@ -28,5 +28,11 @@ async def chat(
     except HTTPException:
         raise
     except Exception as e:
+        error_str = str(e)
         logger.error("Chat error for uid=%s: %s", uid, e)
+        if "429" in error_str or "quota" in error_str.lower() or "resource exhausted" in error_str.lower():
+            raise HTTPException(
+                status_code=429,
+                detail="AI đang quá tải, vui lòng thử lại sau vài giây.",
+            )
         raise HTTPException(status_code=500, detail="Lỗi xử lý câu hỏi")
