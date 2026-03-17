@@ -55,5 +55,5 @@ jobs:
             --memory 512Mi \
             --cpu 1 \
             --concurrency 80 \
-            --set-env-vars="FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }},ENVIRONMENT=production" \
+            --set-env-vars="^|^FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}|FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}|GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}|TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}|ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}|ENVIRONMENT=production" \
             --set-secrets="FIREBASE_PRIVATE_KEY=firebase-private-key:latest"
