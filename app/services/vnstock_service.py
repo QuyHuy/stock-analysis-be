@@ -46,22 +46,50 @@ def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list
 
 
 def get_stock_company_info(symbol: str) -> dict:
-    """Fetch company overview info for a stock symbol."""
+    """Fetch company overview and financial ratios for a stock symbol."""
+    result: dict = {"symbol": symbol}
     try:
         stock = Vnstock().stock(symbol=symbol, source="TCBS")
-        df = stock.company.overview()
-        if df is None or df.empty:
-            return {"symbol": symbol}
-        row = df.iloc[0]
-        return {
-            "symbol": symbol,
-            "name": str(row.get("short_name") or row.get("company_name") or row.get("organ_name") or ""),
-            "exchange": str(row.get("exchange") or row.get("stock_exchange") or ""),
-            "industry": str(row.get("industry_name") or row.get("icb_name3") or ""),
-        }
+
+        # Company overview
+        try:
+            df = stock.company.overview()
+            if df is not None and not df.empty:
+                row = df.iloc[0]
+                result["name"] = str(
+                    row.get("short_name") or row.get("company_name") or row.get("organ_name") or ""
+                )
+                result["exchange"] = str(row.get("exchange") or row.get("stock_exchange") or "")
+                result["industry"] = str(row.get("industry_name") or row.get("icb_name3") or "")
+        except Exception as e:
+            logger.warning("Company overview failed for %s: %s", symbol, e)
+
+        # Financial ratios (PE, PB, ROE, ROA, EPS...)
+        try:
+            ratio_df = stock.finance.ratio(period="quarter", lang="en")
+            if ratio_df is not None and not ratio_df.empty:
+                r = ratio_df.iloc[0]
+                result["pe"] = _safe_float(r.get("priceToEarning") or r.get("pe"))
+                result["pb"] = _safe_float(r.get("priceToBook") or r.get("pb"))
+                result["roe"] = _safe_float(r.get("returnOnEquity") or r.get("roe"))
+                result["roa"] = _safe_float(r.get("returnOnAsset") or r.get("roa"))
+                result["eps"] = _safe_float(r.get("earningPerShare") or r.get("eps"))
+                result["revenue_growth"] = _safe_float(r.get("revenueGrowth"))
+                result["profit_growth"] = _safe_float(r.get("profitGrowth"))
+        except Exception as e:
+            logger.warning("Financial ratios failed for %s: %s", symbol, e)
+
     except Exception as e:
         logger.warning("Could not fetch company info for %s: %s", symbol, e)
-        return {"symbol": symbol}
+
+    return result
+
+
+def _safe_float(val) -> float | None:
+    try:
+        return round(float(val), 2) if val is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def get_stock_current_price(symbol: str) -> float | None:

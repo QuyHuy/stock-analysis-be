@@ -129,6 +129,25 @@ def build_stock_context(stock_data: dict) -> str:
         if exchange:
             parts.append(f"Sàn: {exchange}" + (f" | Ngành: {industry}" if industry else ""))
 
+        # Financial ratios
+        ratio_parts = []
+        if info.get("pe") is not None:
+            ratio_parts.append(f"P/E: {info['pe']}")
+        if info.get("pb") is not None:
+            ratio_parts.append(f"P/B: {info['pb']}")
+        if info.get("roe") is not None:
+            ratio_parts.append(f"ROE: {info['roe']}%")
+        if info.get("roa") is not None:
+            ratio_parts.append(f"ROA: {info['roa']}%")
+        if info.get("eps") is not None:
+            ratio_parts.append(f"EPS: {info['eps']:,}")
+        if info.get("revenue_growth") is not None:
+            ratio_parts.append(f"Tăng trưởng DT: {info['revenue_growth']}%")
+        if info.get("profit_growth") is not None:
+            ratio_parts.append(f"Tăng trưởng LN: {info['profit_growth']}%")
+        if ratio_parts:
+            parts.append(f"Chỉ số tài chính: {' | '.join(ratio_parts)}")
+
     history = stock_data.get("history") or []
     if not history:
         parts.append("Chưa có dữ liệu giá (cần sync dữ liệu)")
@@ -217,7 +236,7 @@ def chat_with_context(user_message: str, history: list[dict] | None = None) -> s
     for symbol in symbols[:5]:  # Support up to 5 symbols
         stock_data = {
             "info": get_stock_info(symbol),
-            "history": get_latest_prices(symbol, limit=60),  # 60 days for better indicators
+            "history": get_latest_prices(symbol, limit=100),  # 100 days for MA50 + indicators
         }
         ctx = build_stock_context(stock_data)
         context_parts.append(ctx)

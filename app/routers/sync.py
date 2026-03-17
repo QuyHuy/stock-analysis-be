@@ -28,7 +28,7 @@ async def _sync_stocks() -> None:
     with synchronous vnstock HTTP calls and Firestore writes.
     """
     end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
     success_count = 0
 
     for symbol in DEFAULT_SYMBOLS:
