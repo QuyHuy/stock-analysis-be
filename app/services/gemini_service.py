@@ -60,7 +60,7 @@ def _get_gemini_model() -> genai.GenerativeModel:
     settings = get_settings()
     genai.configure(api_key=settings.gemini_api_key)
     return genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+        model_name="gemini-1.5-flash",
         system_instruction=SYSTEM_PROMPT,
     )
 
