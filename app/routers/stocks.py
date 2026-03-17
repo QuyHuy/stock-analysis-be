@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Header
 from ..services import firestore_service
 from ..services.vnstock_service import DEFAULT_SYMBOLS
-from ..core.firebase import verify_token
+from ..core.firebase import verify_token, get_db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -10,8 +10,27 @@ logger = logging.getLogger(__name__)
 
 @router.get("")
 async def list_stocks(authorization: str | None = Header(default=None)):
+    """Return all tracked symbols grouped by industry."""
     verify_token(authorization)
-    return {"symbols": DEFAULT_SYMBOLS}
+    db = get_db()
+    grouped: dict[str, list[dict]] = {}
+    for symbol in DEFAULT_SYMBOLS:
+        try:
+            doc = db.collection("stocks").document(symbol).get()
+            data = doc.to_dict() if doc.exists else {}
+        except Exception:
+            data = {}
+        industry = data.get("industry") or "Khác"
+        name = data.get("name") or ""
+        exchange = data.get("exchange") or ""
+        pe = data.get("pe")
+        grouped.setdefault(industry, []).append({
+            "symbol": symbol,
+            "name": name,
+            "exchange": exchange,
+            "pe": pe,
+        })
+    return {"symbols": DEFAULT_SYMBOLS, "categories": grouped}
 
 
 @router.get("/{symbol}")
