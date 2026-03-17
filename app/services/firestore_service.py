@@ -66,13 +66,52 @@ def deactivate_alert(alert_id: str) -> None:
 
 def save_chat_message(uid: str, chat_id: str, role: str, content: str) -> None:
     try:
-        get_db().collection("users").document(uid) \
+        db = get_db()
+        now = datetime.now(timezone.utc)
+        db.collection("users").document(uid) \
             .collection("chats").document(chat_id) \
             .collection("messages").add({
                 "role": role,
                 "content": content,
-                "createdAt": datetime.now(timezone.utc),
+                "createdAt": now,
             })
+        # Update chat metadata for history listing
+        chat_ref = db.collection("users").document(uid).collection("chats").document(chat_id)
+        update_data: dict = {"updatedAt": now}
+        chat_doc = chat_ref.get()
+        if not chat_doc.exists:
+            update_data["createdAt"] = now
+            if role == "user":
+                update_data["title"] = content[:60] + ("..." if len(content) > 60 else "")
+        chat_ref.set(update_data, merge=True)
     except Exception as e:
         logger.error("save_chat_message failed for uid=%s: %s", uid, e)
         raise
+
+
+def get_user_chats(uid: str, limit: int = 20) -> list[dict]:
+    """Get list of recent chat sessions for a user."""
+    try:
+        docs = get_db().collection("users").document(uid) \
+            .collection("chats") \
+            .order_by("updatedAt", direction="DESCENDING") \
+            .limit(limit) \
+            .stream()
+        return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+    except Exception as e:
+        logger.error("get_user_chats failed for uid=%s: %s", uid, e)
+        return []
+
+
+def get_chat_messages(uid: str, chat_id: str) -> list[dict]:
+    """Get all messages for a specific chat session."""
+    try:
+        docs = get_db().collection("users").document(uid) \
+            .collection("chats").document(chat_id) \
+            .collection("messages") \
+            .order_by("createdAt", direction="ASCENDING") \
+            .stream()
+        return [{"role": d.get("role"), "content": d.get("content")} for d in (doc.to_dict() for doc in docs)]
+    except Exception as e:
+        logger.error("get_chat_messages failed for uid=%s chat=%s: %s", uid, chat_id, e)
+        return []

@@ -10,6 +10,24 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+@router.get("/history")
+async def list_chats(authorization: str | None = Header(default=None)):
+    """Get list of recent chat sessions for the authenticated user."""
+    uid = verify_token(authorization)
+    return firestore_service.get_user_chats(uid)
+
+
+@router.get("/history/{chat_id}")
+async def get_chat(
+    chat_id: str,
+    authorization: str | None = Header(default=None),
+):
+    """Get all messages for a specific chat session."""
+    uid = verify_token(authorization)
+    messages = firestore_service.get_chat_messages(uid, chat_id)
+    return {"chat_id": chat_id, "messages": messages}
+
+
 @router.post("", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
