@@ -12,13 +12,21 @@ def test_list_stocks_requires_auth():
 def test_list_stocks_returns_symbols():
     from fastapi.testclient import TestClient
     from app.main import app
-    with patch("app.core.firebase.auth") as mock_auth:
+
+    mock_doc = MagicMock()
+    mock_doc.exists = True
+    mock_doc.to_dict.return_value = {"symbol": "VNM", "name": "Vinamilk", "industry": "Thực phẩm"}
+
+    with patch("app.core.firebase.auth") as mock_auth, \
+         patch("app.routers.stocks.get_db") as mock_get_db:
         mock_auth.verify_id_token.return_value = {"uid": "test-uid"}
+        mock_get_db.return_value.collection.return_value.document.return_value.get.return_value = mock_doc
         client = TestClient(app)
         response = client.get("/stocks", headers={"Authorization": "Bearer fake-token"})
     assert response.status_code == 200
     data = response.json()
     assert "symbols" in data
+    assert "categories" in data
     assert "VNM" in data["symbols"]
 
 
