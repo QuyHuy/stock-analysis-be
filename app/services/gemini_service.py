@@ -7,76 +7,100 @@ from .firestore_service import get_latest_prices, get_stock_info
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Bạn là chuyên gia phân tích chứng khoán Việt Nam với 15 năm kinh nghiệm, am hiểu sâu về phân tích kỹ thuật và cơ bản.
+SYSTEM_PROMPT = """Bạn là chuyên gia phân tích chứng khoán Việt Nam với 15 năm kinh nghiệm, thành thạo cả phân tích kỹ thuật lẫn phân tích cơ bản.
 
-KHI CÓ DỮ LIỆU CỔ PHIẾU, hãy phân tích đầy đủ theo cấu trúc sau:
+─────────────────────────────────────────────
+KHI ĐƯỢC CUNG CẤP DỮ LIỆU CỔ PHIẾU, hãy phân tích TOÀN DIỆN theo cấu trúc:
 
-📊 **TỔNG QUAN**
-- Giá hiện tại và thay đổi so với hôm qua, tuần trước, tháng trước (%)
-- Khối lượng giao dịch so với trung bình 20 phiên
+## 📊 TỔNG QUAN
+- Tên công ty, sàn niêm yết, ngành
+- Giá hiện tại và biến động (1 ngày / 5 ngày / 20 ngày)
+- Vốn hóa thị trường (nếu có)
 
-📈 **XU HƯỚNG & ĐƯỜNG TRUNG BÌNH**
-- So sánh giá với MA20 và MA50: giá đang trên/dưới, khoảng cách %
-- Nhận định xu hướng ngắn hạn (dưới 1 tháng) và trung hạn (1-3 tháng)
-- Golden cross / Death cross nếu có
+## 📈 PHÂN TÍCH KỸ THUẬT
+**Xu hướng:**
+- So sánh giá với MA20, MA50: đang trên/dưới bao nhiêu %
+- Nhận định xu hướng ngắn hạn và trung hạn
+- Tín hiệu Golden Cross / Death Cross nếu có
 
-⚡ **CHỈ BÁO KỸ THUẬT**
-- RSI(14): mức hiện tại và nhận định (quá mua >70, quá bán <30, trung tính)
-- Biến động giá 5 phiên, 20 phiên
-- Nhận xét về momentum
+**Chỉ báo:**
+- RSI(14): mức hiện tại → quá mua (>70) / quá bán (<30) / trung tính
+- Volume hiện tại so với trung bình 20 phiên
+- Momentum và sức mạnh xu hướng
 
-🎯 **VÙNG GIÁ QUAN TRỌNG**
-- Vùng hỗ trợ gần nhất (dựa trên low gần đây)
-- Vùng kháng cự gần nhất (dựa trên high gần đây)
-- Khoảng % đến hỗ trợ/kháng cự
+**Vùng giá quan trọng:**
+- Hỗ trợ gần nhất và xa hơn (tính từ low 20 phiên)
+- Kháng cự gần nhất và xa hơn (tính từ high 20 phiên)
+- Khoảng cách % đến hỗ trợ / kháng cự
 
-💡 **NHẬN ĐỊNH TỔNG THỂ**
-- Đánh giá ngắn gọn: Tích cực / Trung tính / Thận trọng
-- Điểm cần theo dõi trong phiên tới
+## 💰 PHÂN TÍCH CƠ BẢN
+**Định giá:**
+- P/E, P/B, P/S so sánh với trung bình ngành
+- EPS và BVPS hiện tại
+- Nhận định cổ phiếu đang rẻ / hợp lý / đắt
 
-⚠️ **CẢNH BÁO RỦI RO**
-- Các rủi ro chính cần lưu ý
+**Chất lượng kinh doanh:**
+- ROE, ROA: hiệu quả sử dụng vốn
+- Biên lợi nhuận gộp và ròng
+- Tăng trưởng doanh thu và lợi nhuận (YoY)
 
-KHI KHÔNG CÓ DỮ LIỆU: Trả lời dựa trên kiến thức chung về doanh nghiệp/ngành, thông báo dữ liệu chưa được sync.
+**Sức khỏe tài chính:**
+- Nợ/Vốn chủ sở hữu (D/E ratio)
+- Hệ số thanh khoản hiện hành
+- Dòng tiền hoạt động kinh doanh
 
-NGUYÊN TẮC:
-- Trả lời bằng tiếng Việt, rõ ràng, có cấu trúc với emoji và markdown
-- Dùng số liệu cụ thể, tránh chung chung
-- Không đưa ra lời khuyên mua/bán tuyệt đối
-- Luôn nhắc nhở về rủi ro và tự nghiên cứu thêm"""
+**Báo cáo tài chính (theo quý):**
+- Xu hướng doanh thu và lợi nhuận qua các quý gần nhất
+- Điểm đáng chú ý trong báo cáo
+
+## 🎯 NHẬN ĐỊNH TỔNG HỢP
+- Điểm mạnh của cổ phiếu
+- Điểm yếu / rủi ro cần lưu ý
+- Kết luận: Tích cực / Trung tính / Thận trọng (kèm lý do cụ thể)
+- Mức giá cần theo dõi quan trọng
+
+## ⚠️ CẢNH BÁO RỦI RO
+- Rủi ro thị trường và ngành
+- Rủi ro nội tại doanh nghiệp
+- Các yếu tố macro cần theo dõi
+
+─────────────────────────────────────────────
+KHI KHÔNG CÓ DỮ LIỆU: Phân tích dựa trên kiến thức chung, thông báo rõ là chưa có dữ liệu thực tế.
+
+NGUYÊN TẮC BẮT BUỘC:
+- Trả lời bằng tiếng Việt, dùng markdown và emoji để dễ đọc
+- Luôn dùng số liệu cụ thể từ dữ liệu được cung cấp
+- KHÔNG đưa ra khuyến nghị mua/bán tuyệt đối
+- Luôn nhắc nhở rủi ro và khuyến khích tự nghiên cứu thêm"""
 
 _VN_STOCK_PATTERN = re.compile(r'\b([A-Z]{3,4})\b')
 _COMMON_WORDS = frozenset({
     "AI", "OK", "VN", "TP", "HCM", "RSI", "MACD", "PE", "EPS", "ROE",
     "ROA", "IPO", "ETF", "NAV", "GDP", "CPI", "USD", "VND", "THE", "FOR",
-    "MA", "SMA", "EMA", "ATH", "ATL",
+    "MA", "SMA", "EMA", "ATH", "ATL", "TTM", "YOY", "QOQ",
 })
 
 
 def extract_symbols(text: str) -> list[str]:
-    """Extract Vietnamese stock ticker symbols from user text."""
     candidates = _VN_STOCK_PATTERN.findall(text.upper())
     return [s for s in dict.fromkeys(candidates) if s not in _COMMON_WORDS]
 
 
 def _calculate_indicators(history: list[dict]) -> dict:
-    """Calculate technical indicators from price history (history is DESC order)."""
+    """Calculate technical indicators (history is DESC — newest first)."""
     if not history:
         return {}
-
-    closes = [h.get("close", 0) for h in history]
+    closes  = [h.get("close", 0) for h in history]
     volumes = [h.get("volume", 0) for h in history]
-    highs = [h.get("high", 0) for h in history]
-    lows = [h.get("low", 0) for h in history]
     indicators = {}
 
-    # Moving averages
     if len(closes) >= 20:
-        indicators["ma20"] = sum(closes[:20]) / 20
+        indicators["ma20"] = round(sum(closes[:20]) / 20, 1)
     if len(closes) >= 50:
-        indicators["ma50"] = sum(closes[:50]) / 50
+        indicators["ma50"] = round(sum(closes[:50]) / 50, 1)
+    if len(closes) >= 100:
+        indicators["ma100"] = round(sum(closes[:100]) / 100, 1)
 
-    # RSI(14) — history is DESC so index 0 is latest
     if len(closes) >= 15:
         gains, losses = [], []
         for i in range(14):
@@ -91,129 +115,183 @@ def _calculate_indicators(history: list[dict]) -> dict:
         else:
             indicators["rsi"] = 100.0
 
-    # Volume average (20 sessions)
     if len(volumes) >= 20:
         indicators["vol_ma20"] = int(sum(volumes[:20]) / 20)
 
-    # Price changes
     if len(closes) >= 2 and closes[1]:
-        indicators["change_1d"] = round((closes[0] - closes[1]) / closes[1] * 100, 2)
+        indicators["change_1d"]  = round((closes[0] - closes[1])  / closes[1]  * 100, 2)
     if len(closes) >= 6 and closes[5]:
-        indicators["change_5d"] = round((closes[0] - closes[5]) / closes[5] * 100, 2)
+        indicators["change_5d"]  = round((closes[0] - closes[5])  / closes[5]  * 100, 2)
     if len(closes) >= 21 and closes[20]:
         indicators["change_20d"] = round((closes[0] - closes[20]) / closes[20] * 100, 2)
 
-    # Support / Resistance (recent 20 sessions)
     recent = history[:20]
     if recent:
-        indicators["support"] = min(h.get("low", 0) for h in recent)
+        indicators["support"]    = min(h.get("low",  0) for h in recent)
         indicators["resistance"] = max(h.get("high", 0) for h in recent)
 
     return indicators
 
 
-def build_stock_context(stock_data: dict) -> str:
-    """Build a detailed context string from Firestore data to inject into Gemini prompt."""
-    if not stock_data:
-        return "Không có dữ liệu cổ phiếu."
+def _fmt(val, suffix="", decimals=1) -> str:
+    if val is None:
+        return "N/A"
+    return f"{val:,.{decimals}f}{suffix}"
 
+
+def build_technical_context(symbol: str, info: dict, history: list[dict]) -> str:
     parts = []
-    info = stock_data.get("info") or {}
-    symbol = info.get("symbol", "")
+    name     = info.get("name", "")
+    exchange = info.get("exchange", "")
+    industry = info.get("industry", "")
 
-    if info:
-        name = info.get("name", "")
-        exchange = info.get("exchange", "")
-        industry = info.get("industry", "")
-        parts.append(f"=== {symbol}" + (f" - {name}" if name else "") + " ===")
-        if exchange:
-            parts.append(f"Sàn: {exchange}" + (f" | Ngành: {industry}" if industry else ""))
+    parts.append(f"╔══ {symbol}" + (f" — {name}" if name else "") + " ══╗")
+    meta = []
+    if exchange: meta.append(f"Sàn: {exchange}")
+    if industry: meta.append(f"Ngành: {industry}")
+    if meta:     parts.append(" | ".join(meta))
 
-        # Financial ratios
-        ratio_parts = []
-        if info.get("pe") is not None:
-            ratio_parts.append(f"P/E: {info['pe']}")
-        if info.get("pb") is not None:
-            ratio_parts.append(f"P/B: {info['pb']}")
-        if info.get("roe") is not None:
-            ratio_parts.append(f"ROE: {info['roe']}%")
-        if info.get("roa") is not None:
-            ratio_parts.append(f"ROA: {info['roa']}%")
-        if info.get("eps") is not None:
-            ratio_parts.append(f"EPS: {info['eps']:,}")
-        if info.get("revenue_growth") is not None:
-            ratio_parts.append(f"Tăng trưởng DT: {info['revenue_growth']}%")
-        if info.get("profit_growth") is not None:
-            ratio_parts.append(f"Tăng trưởng LN: {info['profit_growth']}%")
-        if ratio_parts:
-            parts.append(f"Chỉ số tài chính: {' | '.join(ratio_parts)}")
-
-    history = stock_data.get("history") or []
     if not history:
-        parts.append("Chưa có dữ liệu giá (cần sync dữ liệu)")
+        parts.append("⚠ Chưa có dữ liệu giá lịch sử (cần trigger /sync)")
         return "\n".join(parts)
 
     latest = history[0]
-    current_price = latest.get("close", 0)
-
-    parts.append(f"\n--- Dữ liệu giá ({len(history)} phiên gần nhất) ---")
-    parts.append(f"Ngày: {latest.get('date', '')}")
-    parts.append(
-        f"Mở: {latest.get('open', 0):,.1f} | Cao: {latest.get('high', 0):,.1f} | "
-        f"Thấp: {latest.get('low', 0):,.1f} | Đóng: {current_price:,.1f}"
-    )
-    parts.append(f"Khối lượng: {latest.get('volume', 0):,}")
-
+    current = latest.get("close", 0)
     ind = _calculate_indicators(history)
 
-    # Price changes
+    parts.append(f"\n[KỸ THUẬT — {len(history)} phiên]")
+    parts.append(
+        f"Ngày {latest.get('date','')} | "
+        f"Mở: {_fmt(latest.get('open'))} | Cao: {_fmt(latest.get('high'))} | "
+        f"Thấp: {_fmt(latest.get('low'))} | Đóng: {_fmt(current)}"
+    )
+    parts.append(f"Volume: {latest.get('volume', 0):,}")
+
     changes = []
-    if "change_1d" in ind:
-        changes.append(f"1 ngày: {ind['change_1d']:+.2f}%")
-    if "change_5d" in ind:
-        changes.append(f"5 ngày: {ind['change_5d']:+.2f}%")
-    if "change_20d" in ind:
-        changes.append(f"20 ngày: {ind['change_20d']:+.2f}%")
+    for key, label in [("change_1d","1D"), ("change_5d","5D"), ("change_20d","20D")]:
+        if key in ind:
+            arrow = "▲" if ind[key] > 0 else "▼"
+            changes.append(f"{label}: {arrow}{abs(ind[key]):.2f}%")
     if changes:
-        parts.append(f"Biến động: {' | '.join(changes)}")
+        parts.append("Biến động: " + " | ".join(changes))
 
-    # Moving averages
-    if "ma20" in ind:
-        diff_pct = (current_price - ind["ma20"]) / ind["ma20"] * 100
-        trend = "trên" if current_price > ind["ma20"] else "dưới"
-        parts.append(f"MA20: {ind['ma20']:,.1f} (giá {trend} MA20 {abs(diff_pct):.1f}%)")
-    if "ma50" in ind:
-        diff_pct = (current_price - ind["ma50"]) / ind["ma50"] * 100
-        trend = "trên" if current_price > ind["ma50"] else "dưới"
-        parts.append(f"MA50: {ind['ma50']:,.1f} (giá {trend} MA50 {abs(diff_pct):.1f}%)")
+    for ma_key, ma_label in [("ma20","MA20"), ("ma50","MA50"), ("ma100","MA100")]:
+        if ma_key in ind:
+            diff = (current - ind[ma_key]) / ind[ma_key] * 100
+            pos  = "↑trên" if current > ind[ma_key] else "↓dưới"
+            parts.append(f"{ma_label}: {ind[ma_key]:,.1f} ({pos} {abs(diff):.1f}%)")
 
-    # RSI
     if "rsi" in ind:
         rsi = ind["rsi"]
-        signal = "⚠️ QUÁ MUA" if rsi > 70 else ("⚠️ QUÁ BÁN" if rsi < 30 else "trung tính")
-        parts.append(f"RSI(14): {rsi} ({signal})")
+        sig = "🔴 QUÁ MUA" if rsi > 70 else ("🟢 QUÁ BÁN" if rsi < 30 else "🟡 Trung tính")
+        parts.append(f"RSI(14): {rsi} — {sig}")
 
-    # Volume
-    if "vol_ma20" in ind:
-        vol_ratio = latest.get("volume", 0) / ind["vol_ma20"] if ind["vol_ma20"] else 0
-        parts.append(f"Volume/TB20: {vol_ratio:.1f}x ({ind['vol_ma20']:,} TB)")
+    if "vol_ma20" in ind and ind["vol_ma20"]:
+        ratio = latest.get("volume", 0) / ind["vol_ma20"]
+        parts.append(f"Volume/TB20: {ratio:.1f}x (TB: {ind['vol_ma20']:,})")
 
-    # Support / Resistance
-    if "support" in ind and "resistance" in ind:
-        to_support = (current_price - ind["support"]) / current_price * 100
-        to_resistance = (ind["resistance"] - current_price) / current_price * 100
+    if "support" in ind:
+        to_sup = (current - ind["support"]) / current * 100
+        to_res = (ind["resistance"] - current) / current * 100
         parts.append(
-            f"Hỗ trợ: {ind['support']:,.1f} (-{to_support:.1f}%) | "
-            f"Kháng cự: {ind['resistance']:,.1f} (+{to_resistance:.1f}%)"
+            f"Hỗ trợ: {ind['support']:,.1f} (-{to_sup:.1f}%) | "
+            f"Kháng cự: {ind['resistance']:,.1f} (+{to_res:.1f}%)"
         )
 
-    # Raw data table (last 10 sessions for reference)
-    parts.append(f"\n--- Lịch sử 10 phiên gần nhất ---")
+    parts.append("\nGiá đóng cửa 15 phiên gần nhất:")
     parts.append("Ngày       | Đóng cửa  | Khối lượng")
-    for h in history[:10]:
+    for h in history[:15]:
         parts.append(
-            f"{h.get('date', '')[:10]} | {h.get('close', 0):>9,.1f} | {h.get('volume', 0):>10,}"
+            f"{h.get('date','')[:10]} | {h.get('close',0):>9,.1f} | {h.get('volume',0):>10,}"
         )
+
+    return "\n".join(parts)
+
+
+def build_fundamental_context(info: dict) -> str:
+    parts = []
+    has_data = False
+
+    # ── Valuation ratios ──────────────────────────────────────────────────────
+    valuation = []
+    for key, label in [("pe","P/E"), ("pb","P/B"), ("ps","P/S"),
+                        ("eps","EPS"), ("bvps","BVPS"), ("dividend_yield","Dividend Yield")]:
+        if info.get(key) is not None:
+            valuation.append(f"{label}: {info[key]}")
+    if valuation:
+        has_data = True
+        parts.append("[CƠ BẢN — ĐỊNH GIÁ]")
+        parts.append(" | ".join(valuation))
+
+    # ── Profitability ─────────────────────────────────────────────────────────
+    profit = []
+    for key, label in [("roe","ROE"), ("roa","ROA"),
+                        ("gross_margin","Biên gộp"), ("net_margin","Biên ròng"),
+                        ("revenue_growth","Tăng trưởng DT"), ("profit_growth","Tăng trưởng LN")]:
+        if info.get(key) is not None:
+            profit.append(f"{label}: {info[key]}%")
+    if profit:
+        has_data = True
+        parts.append("[HIỆU QUẢ KINH DOANH]")
+        parts.append(" | ".join(profit))
+
+    # ── Financial health ──────────────────────────────────────────────────────
+    health = []
+    for key, label in [("debt_equity","D/E"), ("current_ratio","Thanh khoản hiện hành")]:
+        if info.get(key) is not None:
+            health.append(f"{label}: {info[key]}")
+    if health:
+        has_data = True
+        parts.append("[SỨC KHỎE TÀI CHÍNH]")
+        parts.append(" | ".join(health))
+
+    # ── Income statement ──────────────────────────────────────────────────────
+    iq = info.get("income_quarters", [])
+    if iq:
+        has_data = True
+        parts.append("[KẾT QUẢ KINH DOANH THEO QUÝ (tỷ VND)]")
+        parts.append(f"{'Kỳ':10} | {'Doanh thu':>12} | {'Lợi nhuận gộp':>14} | {'LNST':>12} | {'LN hoạt động':>13}")
+        for q in iq:
+            parts.append(
+                f"{str(q.get('period',''))[:10]:10} | "
+                f"{_fmt(q.get('revenue'), ' tỷ', 0):>12} | "
+                f"{_fmt(q.get('gross_profit'), ' tỷ', 0):>14} | "
+                f"{_fmt(q.get('net_profit'), ' tỷ', 0):>12} | "
+                f"{_fmt(q.get('operating_profit'), ' tỷ', 0):>13}"
+            )
+
+    # ── Balance sheet ─────────────────────────────────────────────────────────
+    bq = info.get("balance_quarters", [])
+    if bq:
+        has_data = True
+        parts.append("[BẢNG CÂN ĐỐI KẾ TOÁN THEO QUÝ (tỷ VND)]")
+        parts.append(f"{'Kỳ':10} | {'Tổng tài sản':>14} | {'Tổng nợ':>10} | {'Vốn CSH':>10} | {'Tiền mặt':>10}")
+        for q in bq:
+            parts.append(
+                f"{str(q.get('period',''))[:10]:10} | "
+                f"{_fmt(q.get('total_assets'), ' tỷ', 0):>14} | "
+                f"{_fmt(q.get('total_liabilities'), ' tỷ', 0):>10} | "
+                f"{_fmt(q.get('equity'), ' tỷ', 0):>10} | "
+                f"{_fmt(q.get('cash'), ' tỷ', 0):>10}"
+            )
+
+    # ── Cash flow ────────────────────────────────────────────────────────────
+    cq = info.get("cashflow_quarters", [])
+    if cq:
+        has_data = True
+        parts.append("[DÒNG TIỀN THEO QUÝ (tỷ VND)]")
+        parts.append(f"{'Kỳ':10} | {'CF hoạt động':>14} | {'CF đầu tư':>11} | {'CF tài chính':>13} | {'FCF':>10}")
+        for q in cq:
+            parts.append(
+                f"{str(q.get('period',''))[:10]:10} | "
+                f"{_fmt(q.get('operating_cf'), ' tỷ', 0):>14} | "
+                f"{_fmt(q.get('investing_cf'), ' tỷ', 0):>11} | "
+                f"{_fmt(q.get('financing_cf'), ' tỷ', 0):>13} | "
+                f"{_fmt(q.get('free_cash_flow'), ' tỷ', 0):>10}"
+            )
+
+    if not has_data:
+        return ""
 
     return "\n".join(parts)
 
@@ -229,21 +307,30 @@ def _get_gemini_model() -> genai.GenerativeModel:
 
 
 def chat_with_context(user_message: str, history: list[dict] | None = None) -> str:
-    """Call Gemini with rich stock data and technical indicators as context."""
+    """Call Gemini with full technical + fundamental data as context."""
     symbols = extract_symbols(user_message)
 
-    context_parts = []
-    for symbol in symbols[:5]:  # Support up to 5 symbols
-        stock_data = {
-            "info": get_stock_info(symbol),
-            "history": get_latest_prices(symbol, limit=100),  # 100 days for MA50 + indicators
-        }
-        ctx = build_stock_context(stock_data)
-        context_parts.append(ctx)
+    context_blocks = []
+    for symbol in symbols[:5]:
+        info    = get_stock_info(symbol) or {}
+        prices  = get_latest_prices(symbol, limit=100)
 
-    if context_parts:
-        context_str = "\n\n" + "\n\n".join(context_parts)
-        full_message = f"{user_message}\n\n[DỮ LIỆU THỊ TRƯỜNG THỰC TẾ]{context_str}"
+        tech_ctx  = build_technical_context(symbol, info, prices)
+        fund_ctx  = build_fundamental_context(info)
+
+        block = tech_ctx
+        if fund_ctx:
+            block += "\n\n" + fund_ctx
+        context_blocks.append(block)
+
+    if context_blocks:
+        context_str = "\n\n" + ("\n\n" + "─" * 60 + "\n\n").join(context_blocks)
+        full_message = (
+            f"{user_message}"
+            f"\n\n{'═' * 60}"
+            f"\n[DỮ LIỆU THỊ TRƯỜNG THỰC TẾ — Phân tích kỹ thuật + cơ bản]"
+            f"{context_str}"
+        )
     else:
         full_message = user_message
 

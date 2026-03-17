@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks
 
-from ..services.vnstock_service import get_stock_price_history, get_stock_company_info, DEFAULT_SYMBOLS
+from ..services.vnstock_service import get_stock_price_history, get_stock_fundamentals, DEFAULT_SYMBOLS
 from ..services.firestore_service import upsert_stock, upsert_price_history
 
 router = APIRouter()
@@ -11,10 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 def _sync_one_symbol(symbol: str, start_date: str, end_date: str) -> int:
-    """Sync one symbol synchronously. Returns number of records synced."""
-    info = get_stock_company_info(symbol)
-    info["updatedAt"] = datetime.now(timezone.utc)
-    upsert_stock(symbol, info)
+    """Sync price history + full fundamental data for one symbol."""
+    # Fetch fundamentals (overview + ratios + income + balance + cashflow)
+    fundamentals = get_stock_fundamentals(symbol)
+    fundamentals["updatedAt"] = datetime.now(timezone.utc)
+    upsert_stock(symbol, fundamentals)
+
+    # Fetch price history
     records = get_stock_price_history(symbol, start_date, end_date)
     for record in records:
         upsert_price_history(symbol, record["date"], record)
