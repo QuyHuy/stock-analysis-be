@@ -16,7 +16,7 @@ DEFAULT_SYMBOLS = [
 def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list[dict]:
     """Fetch daily OHLCV history for a stock symbol."""
     try:
-        stock = Vnstock().stock(symbol=symbol, source="VCI")
+        stock = Vnstock().stock(symbol=symbol, source="TCBS")
         df = stock.quote.history(start=start_date, end=end_date, interval="1D")
         if df is None or df.empty:
             logger.warning("Empty history for %s (%s to %s)", symbol, start_date, end_date)
@@ -48,7 +48,7 @@ def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list
 def get_stock_company_info(symbol: str) -> dict:
     """Fetch company overview info for a stock symbol."""
     try:
-        stock = Vnstock().stock(symbol=symbol, source="VCI")
+        stock = Vnstock().stock(symbol=symbol, source="TCBS")
         df = stock.company.overview()
         if df is None or df.empty:
             return {"symbol": symbol}
