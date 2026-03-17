@@ -1,9 +1,18 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.config import get_settings
+from .core.firebase import get_db
 from .routers import chat, stocks, alerts, sync
 
-app = FastAPI(title="Stock Analysis API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_db()  # Initialize Firebase Admin SDK at startup
+    yield
+
+
+app = FastAPI(title="Stock Analysis API", version="1.0.0", lifespan=lifespan)
 
 settings = get_settings()
 app.add_middleware(
