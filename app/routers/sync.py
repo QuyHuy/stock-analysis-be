@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, BackgroundTasks
 
-from ..services.vnstock_service import get_stock_price_history, DEFAULT_SYMBOLS
+from ..services.vnstock_service import get_stock_price_history, get_stock_company_info, DEFAULT_SYMBOLS
 from ..services.firestore_service import upsert_stock, upsert_price_history
 
 router = APIRouter()
@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 def _sync_one_symbol(symbol: str, start_date: str, end_date: str) -> int:
     """Sync one symbol synchronously. Returns number of records synced."""
-    upsert_stock(symbol, {"symbol": symbol, "updatedAt": datetime.now()})
+    info = get_stock_company_info(symbol)
+    info["updatedAt"] = datetime.now(timezone.utc)
+    upsert_stock(symbol, info)
     records = get_stock_price_history(symbol, start_date, end_date)
     for record in records:
         upsert_price_history(symbol, record["date"], record)
