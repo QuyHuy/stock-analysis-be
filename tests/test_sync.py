@@ -38,9 +38,18 @@ def test_get_stock_current_price_returns_float():
 
 
 def test_sync_endpoint_returns_200():
+    """Sync endpoint trả 200; mock get_all_symbols để không gọi API (tránh rate limit)."""
     from fastapi.testclient import TestClient
     from app.main import app
-    with patch("app.services.vnstock_service.Vnstock"):
+
+    with (
+        patch("app.routers.sync.get_all_symbols", return_value=["VNM"]),
+        patch("app.routers.sync.get_stock_fundamentals") as mock_fund,
+        patch("app.routers.sync.get_stock_price_history", return_value=[
+            {"date": "2026-03-17", "open": 80, "high": 82, "low": 79, "close": 81, "volume": 1000},
+        ]),
+    ):
+        mock_fund.return_value = {"symbol": "VNM", "name": "Vinamilk"}
         client = TestClient(app)
         response = client.post("/sync")
     assert response.status_code == 200
