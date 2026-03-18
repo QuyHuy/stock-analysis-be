@@ -13,6 +13,28 @@ DEFAULT_SYMBOLS = [
 ]
 
 
+def get_all_symbols() -> list[str]:
+    """
+    Lấy toàn bộ mã cổ phiếu niêm yết (HOSE, HNX, UPCOM) từ VCI.
+    Fallback về DEFAULT_SYMBOLS nếu không gọi được API listing.
+    """
+    try:
+        from vnstock.explorer.vci.listing import Listing
+        listing = Listing()
+        df = listing.all_symbols()
+        if df is not None and not df.empty and "symbol" in df.columns:
+            symbols = df["symbol"].astype(str).str.strip().unique().tolist()
+            symbols = [s for s in symbols if s and len(s) >= 2]
+            if symbols:
+                logger.info("Loaded %d symbols from VCI listing", len(symbols))
+                return symbols
+    except ImportError as e:
+        logger.warning("VCI listing not available (%s), using DEFAULT_SYMBOLS", e)
+    except Exception as e:
+        logger.warning("Failed to fetch all symbols (%s), using DEFAULT_SYMBOLS", e)
+    return list(DEFAULT_SYMBOLS)
+
+
 def _safe_float(val) -> float | None:
     try:
         return round(float(val), 2) if val is not None and val == val else None
@@ -27,15 +49,23 @@ def _safe_int(val) -> int | None:
         return None
 
 
+def _get_row_value(row, *candidates):
+    """Lấy giá trị đầu tiên khác None/nan từ row với danh sách tên cột."""
+    for col in candidates:
+        val = row.get(col) if hasattr(row, "get") else getattr(row, col, None)
+        if val is not None and str(val) not in ("nan", "None", ""):
+            return val
+    return None
+
+
 def _row_to_dict(row, mapping: dict) -> dict:
     """Extract fields from a DataFrame row using a key mapping."""
     result = {}
     for out_key, candidates in mapping.items():
-        for col in (candidates if isinstance(candidates, list) else [candidates]):
-            val = row.get(col)
-            if val is not None and str(val) not in ("nan", "None", ""):
-                result[out_key] = val
-                break
+        cols = candidates if isinstance(candidates, list) else [candidates]
+        val = _get_row_value(row, *cols)
+        if val is not None:
+            result[out_key] = val
     return result
 
 
@@ -88,11 +118,32 @@ def get_stock_fundamentals(symbol: str) -> dict:
             if df is not None and not df.empty:
                 row = df.iloc[0]
                 result["name"] = str(
-                    row.get("short_name") or row.get("company_name") or row.get("organ_name") or ""
+                    _get_row_value(row, "short_name", "company_name", "organ_name") or ""
                 )
-                result["exchange"] = str(row.get("exchange") or row.get("stock_exchange") or "")
-                result["industry"] = str(row.get("industry_name") or row.get("icb_name3") or "")
-                result["market_cap"] = _safe_float(row.get("market_cap") or row.get("marketCap"))
+                result["exchange"] = str(
+                    _get_row_value(row, "exchange", "stock_exchange", "com_group_code") or ""
+                )
+                result["industry"] = str(
+                    _get_row_value(row, "industry_name", "icb_name3", "industry") or ""
+                )
+                market_cap = _get_row_value(
+                    row,
+                    "market_cap", "marketCap", "market_cap_vnd", "capitalization",
+                    "von_hoa", "total_value",
+                )
+                result["market_cap"] = _safe_float(market_cap)
+                # Fallback: ước tính vốn hóa từ giá * KL niêm yết (nếu có)
+                if result.get("market_cap") is None:
+                    outstanding = _get_row_value(row, "outstanding_share", "outstandingShare", "listing_volume", "kl_niem_yet")
+                    if outstanding is not None:
+                        try:
+                            price = _get_row_value(row, "price", "close", "last_price")
+                            if price is not None:
+                                result["market_cap"] = _safe_float(float(price) * float(outstanding))
+                        except (TypeError, ValueError):
+                            pass
+            else:
+                logger.debug("Overview empty for %s", symbol)
         except Exception as e:
             logger.warning("Overview failed %s: %s", symbol, e)
 
@@ -101,20 +152,50 @@ def get_stock_fundamentals(symbol: str) -> dict:
             rdf = stock.finance.ratio(period="quarter", lang="en")
             if rdf is not None and not rdf.empty:
                 r = rdf.iloc[0]
-                result["pe"]             = _safe_float(r.get("priceToEarning") or r.get("pe"))
-                result["pb"]             = _safe_float(r.get("priceToBook") or r.get("pb"))
-                result["ps"]             = _safe_float(r.get("priceToSale") or r.get("ps"))
-                result["roe"]            = _safe_float(r.get("returnOnEquity") or r.get("roe"))
-                result["roa"]            = _safe_float(r.get("returnOnAsset") or r.get("roa"))
-                result["eps"]            = _safe_float(r.get("earningPerShare") or r.get("eps"))
-                result["bvps"]           = _safe_float(r.get("bookValuePerShare") or r.get("bvps"))
-                result["gross_margin"]   = _safe_float(r.get("grossProfitMargin") or r.get("grossMargin"))
-                result["net_margin"]     = _safe_float(r.get("netProfitMargin") or r.get("netMargin"))
-                result["revenue_growth"] = _safe_float(r.get("revenueGrowth"))
-                result["profit_growth"]  = _safe_float(r.get("profitGrowth") or r.get("earningGrowth"))
-                result["debt_equity"]    = _safe_float(r.get("debtToEquity") or r.get("debtOnEquity"))
-                result["current_ratio"]  = _safe_float(r.get("currentRatio"))
-                result["dividend_yield"] = _safe_float(r.get("dividendYield"))
+                result["pe"] = _safe_float(_get_row_value(
+                    r, "priceToEarning", "pe", "price_to_earning", "p_e", "P/E"
+                ))
+                result["pb"] = _safe_float(_get_row_value(
+                    r, "priceToBook", "pb", "price_to_book", "p_b", "P/B"
+                ))
+                result["ps"] = _safe_float(_get_row_value(
+                    r, "priceToSale", "ps", "price_to_sale", "p_s", "P/S"
+                ))
+                result["roe"] = _safe_float(_get_row_value(
+                    r, "returnOnEquity", "roe", "ROE", "return_on_equity"
+                ))
+                result["roa"] = _safe_float(_get_row_value(
+                    r, "returnOnAsset", "roa", "ROA", "return_on_asset"
+                ))
+                result["eps"] = _safe_float(_get_row_value(
+                    r, "earningPerShare", "eps", "earning_per_share", "EPS"
+                ))
+                result["bvps"] = _safe_float(_get_row_value(
+                    r, "bookValuePerShare", "bvps", "book_value_per_share", "BVPS"
+                ))
+                result["gross_margin"] = _safe_float(_get_row_value(
+                    r, "grossProfitMargin", "grossMargin", "gross_margin", "gross_profit_margin"
+                ))
+                result["net_margin"] = _safe_float(_get_row_value(
+                    r, "netProfitMargin", "netMargin", "net_margin", "postTaxMargin", "net_profit_margin"
+                ))
+                result["revenue_growth"] = _safe_float(_get_row_value(
+                    r, "revenueGrowth", "revenue_growth", "epsChange"
+                ))
+                result["profit_growth"] = _safe_float(_get_row_value(
+                    r, "profitGrowth", "earningGrowth", "profit_growth", "earning_growth"
+                ))
+                result["debt_equity"] = _safe_float(_get_row_value(
+                    r, "debtToEquity", "debtOnEquity", "debt_equity", "debt_on_equity"
+                ))
+                result["current_ratio"] = _safe_float(_get_row_value(
+                    r, "currentRatio", "currentPayment", "current_ratio", "quickPayment"
+                ))
+                result["dividend_yield"] = _safe_float(_get_row_value(
+                    r, "dividendYield", "dividend", "dividend_yield"
+                ))
+            else:
+                logger.debug("Ratio empty for %s", symbol)
         except Exception as e:
             logger.warning("Ratios failed %s: %s", symbol, e)
 

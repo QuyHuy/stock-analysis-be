@@ -212,6 +212,11 @@ def build_fundamental_context(info: dict) -> str:
     parts = []
     has_data = False
 
+    # ── Vốn hóa (nếu có) ────────────────────────────────────────────────────
+    if info.get("market_cap") is not None:
+        has_data = True
+        parts.append(f"[TỔNG QUAN] Vốn hóa thị trường: {_fmt(info['market_cap'], '', 0)}")
+
     # ── Valuation ratios ──────────────────────────────────────────────────────
     valuation = []
     for key, label in [("pe","P/E"), ("pb","P/B"), ("ps","P/S"),
