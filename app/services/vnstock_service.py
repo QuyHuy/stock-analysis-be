@@ -5,8 +5,9 @@ from vnstock import Vnstock
 
 logger = logging.getLogger(__name__)
 
-# vnstock 3.5: Finance.ratio() chỉ VCI/KBS; TCBS không còn trong StockComponents.
-# Dữ liệu định giá (P/E, P/B…) nằm ở VCI overview + ratio (cột MultiIndex).
+# Đa nguồn theo tài liệu Vnstock: https://vnstocks.com/docs/vnstock
+# — VCI: listing GraphQL + price/symbols; KBS: listing đầy đủ mã cổ phiếu.
+# Fundamentals: ưu tiên VCI, bổ sung KBS khi thiếu chỉ số.
 SOURCE_FUNDAMENTALS = "VCI"
 
 DEFAULT_SYMBOLS = [
@@ -18,25 +19,97 @@ DEFAULT_SYMBOLS = [
 ]
 
 
+def _is_equity_symbol(sym: str) -> bool:
+    s = str(sym).strip().upper()
+    if not s or len(s) < 2 or len(s) > 5:
+        return False
+    if not s.isalpha():
+        return False
+    # Loại mã phái sinh / đặc biệt phổ biến
+    if s.startswith("VN30") or s.endswith("F1M") or s.startswith("41"):
+        return False
+    return True
+
+
 def get_all_symbols() -> list[str]:
     """
-    Lấy toàn bộ mã cổ phiếu niêm yết (HOSE, HNX, UPCOM) từ VCI.
-    Fallback về DEFAULT_SYMBOLS nếu không gọi được API listing.
+    Gộp mã cổ phiếu từ nhiều nguồn vnstock (VCI + KBS) để đủ toàn thị trường.
+    - VCI symbols_by_exchange (type STOCK, không phân biệt hoa thường)
+    - VCI symbols_by_industries (CompaniesListingInfo — thường >1000 mã)
+    - KBS all_symbols (type stock)
     """
+    merged: set[str] = set()
+    log_parts: list[str] = []
+
+    def add_from_series(series, tag: str) -> int:
+        n = 0
+        for sym in series:
+            if _is_equity_symbol(sym):
+                s = str(sym).strip().upper()
+                if s not in merged:
+                    n += 1
+                merged.add(s)
+        if n or merged:
+            log_parts.append(f"{tag}:+{n}")
+        return n
+
+    # 1) VCI — bảng niêm yết theo sàn (đủ type)
     try:
-        from vnstock.explorer.vci.listing import Listing
-        listing = Listing()
-        df = listing.all_symbols()
+        from vnstock.explorer.vci.listing import Listing as VCIListing
+        L = VCIListing()
+        df = L.symbols_by_exchange(lang="vi", show_log=False)
         if df is not None and not df.empty and "symbol" in df.columns:
-            symbols = df["symbol"].astype(str).str.strip().unique().tolist()
-            symbols = [s for s in symbols if s and len(s) >= 2]
-            if symbols:
-                logger.info("Loaded %d symbols from VCI listing", len(symbols))
-                return symbols
-    except ImportError as e:
-        logger.warning("VCI listing not available (%s), using DEFAULT_SYMBOLS", e)
+            if "type" in df.columns:
+                t = df["type"].astype(str).str.upper().str.strip()
+                skip = {"CW", "ETF", "BOND", "FU_INDEX", "INDEX", "COVERED_WARRANT"}
+                mask = t == "STOCK"
+                if mask.sum() < 200:
+                    mask = ~t.isin(skip) & df["symbol"].astype(str).str.match(r"^[A-Z]{2,5}$", na=False)
+                syms = df.loc[mask, "symbol"] if mask.any() else df["symbol"]
+            else:
+                syms = df["symbol"]
+            add_from_series(syms, "VCI_exchange")
     except Exception as e:
-        logger.warning("Failed to fetch all symbols (%s), using DEFAULT_SYMBOLS", e)
+        logger.warning("VCI symbols_by_exchange: %s", e)
+
+    # 2) VCI — toàn bộ mã doanh nghiệp (GraphQL)
+    try:
+        from vnstock.explorer.vci.listing import Listing as VCIListing
+        df2 = VCIListing().symbols_by_industries(lang="vi", show_log=False)
+        if df2 is not None and not df2.empty and "symbol" in df2.columns:
+            add_from_series(df2["symbol"], "VCI_companies")
+    except Exception as e:
+        logger.warning("VCI symbols_by_industries: %s", e)
+
+    # 3) KBS — danh sách cổ phiếu
+    try:
+        from vnstock.explorer.kbs.listing import Listing as KBSListing
+        df3 = KBSListing().all_symbols(show_log=False)
+        if df3 is not None and not df3.empty and "symbol" in df3.columns:
+            add_from_series(df3["symbol"], "KBS")
+    except Exception as e:
+        logger.warning("KBS all_symbols: %s", e)
+
+    if len(merged) >= 150:
+        out = sorted(merged)
+        logger.info("get_all_symbols merged %d symbols (%s)", len(out), " ".join(log_parts))
+        return out
+
+    # 4) Fallback VCI all_symbols() (chỉ STOCK — có thể ít mã nếu API lỗi)
+    try:
+        from vnstock.explorer.vci.listing import Listing as VCIListing
+        df4 = VCIListing().all_symbols(show_log=False)
+        if df4 is not None and not df4.empty and "symbol" in df4.columns:
+            add_from_series(df4["symbol"], "VCI_all_symbols")
+    except Exception as e:
+        logger.warning("VCI all_symbols: %s", e)
+
+    if merged:
+        out = sorted(merged)
+        logger.info("get_all_symbols partial %d (%s)", len(out), " ".join(log_parts))
+        return out
+
+    logger.warning("No listing API succeeded; using DEFAULT_SYMBOLS (%d)", len(DEFAULT_SYMBOLS))
     return list(DEFAULT_SYMBOLS)
 
 
@@ -181,8 +254,8 @@ def _history_to_records(df) -> list[dict]:
 
 
 def get_stock_price_history(symbol: str, start_date: str, end_date: str) -> list[dict]:
-    """Lịch sử giá: thử TCBS (nếu có), sau đó VCI/KBS."""
-    for src in ("TCBS", "VCI", "KBS"):
+    """Lịch sử giá: VCI → KBS → TCBS (theo độ ổn định vnstock 3.5)."""
+    for src in ("VCI", "KBS", "TCBS"):
         try:
             stock = Vnstock().stock(symbol=symbol, source=src)
             df = stock.quote.history(start=start_date, end=end_date, interval="1D")
@@ -368,7 +441,52 @@ def get_stock_fundamentals(symbol: str) -> dict:
     except Exception as e:
         logger.warning("Could not fetch fundamentals for %s: %s", symbol, e)
 
+    result.setdefault("data_sources_fundamentals", ["VCI"])
+    if (result.get("pe") is None and result.get("pb") is None) or not result.get("name"):
+        _merge_fundamentals_from_kbs(result, symbol)
+
     return result
+
+
+def _merge_fundamentals_from_kbs(result: dict, symbol: str) -> None:
+    """Bổ sung chỉ số / tên từ KBS khi VCI thiếu (đa nguồn)."""
+    try:
+        from vnstock import Finance
+        kf = Finance(source="kbs", symbol=symbol, show_log=False)
+        df = kf.ratio(period="quarter", show_log=False)
+        if df is None or df.empty:
+            return
+        item_col = "item" if "item" in df.columns else None
+        if not item_col:
+            return
+        val_cols = [c for c in df.columns if c != item_col and c not in ("item_id",)]
+        last_col = val_cols[-1] if val_cols else None
+        if not last_col:
+            return
+        for _, row in df.iterrows():
+            lab = str(row.get(item_col, "")).lower()
+            v = _safe_float(row.get(last_col))
+            if v is None:
+                continue
+            if ("p/e" in lab or "hệ số p/e" in lab or lab.strip() in ("pe", "p e")) and result.get("pe") is None:
+                result["pe"] = v
+            elif ("p/b" in lab or "hệ số p/b" in lab) and result.get("pb") is None:
+                result["pb"] = v
+            elif ("p/s" in lab or "hệ số p/s" in lab) and result.get("ps") is None:
+                result["ps"] = v
+            elif ("eps" in lab and "bvps" not in lab) and result.get("eps") is None:
+                result["eps"] = v
+            elif "bvps" in lab or "bvcps" in lab or "book value" in lab:
+                if result.get("bvps") is None:
+                    result["bvps"] = v
+            elif "roe" in lab and "growth" not in lab and result.get("roe") is None:
+                result["roe"] = v
+        if "KBS" not in result["data_sources_fundamentals"]:
+            result["data_sources_fundamentals"].append("KBS")
+    except ValueError:
+        pass
+    except Exception as e:
+        logger.debug("KBS fundamentals overlay %s: %s", symbol, e)
 
 
 def get_stock_current_price(symbol: str) -> float | None:

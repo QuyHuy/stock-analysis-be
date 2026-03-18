@@ -37,6 +37,7 @@ async def _sync_stocks(full_market: bool = True) -> None:
     start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
 
     symbols = get_all_symbols() if full_market else list(DEFAULT_SYMBOLS)
+    logger.info("Sync starting: %d symbols (full_market=%s)", len(symbols), full_market)
     success_count = 0
 
     for symbol in symbols:
