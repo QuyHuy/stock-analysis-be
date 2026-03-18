@@ -53,6 +53,11 @@ KHI ĐƯỢC CUNG CẤP DỮ LIỆU CỔ PHIẾU, hãy phân tích TOÀN DIỆN 
 - Xu hướng doanh thu và lợi nhuận qua các quý gần nhất
 - Điểm đáng chú ý trong báo cáo
 
+QUAN TRỌNG — CÁCH ĐỌC DỮ LIỆU BÁO CÁO TÀI CHÍNH:
+- Các bảng [KẾT QUẢ KINH DOANH THEO QUÝ], [BẢNG CÂN ĐỐI KẾ TOÁN], [DÒNG TIỀN THEO QUÝ] trong context CHÍNH LÀ báo cáo tài chính của công ty. Dữ liệu đã được cung cấp sẵn.
+- Dòng đầu mỗi bảng = quý gần nhất (mới nhất), các dòng sau = các quý trước đó.
+- Khi người dùng hỏi "X tháng gần nhất" hoặc "báo cáo 6 tháng/1 năm": 6 tháng = 2 quý đầu trong bảng, 12 tháng = 4 quý đầu. Hãy TRỰC TIẾP dùng số liệu từ các dòng tương ứng để phân tích, trích dẫn cụ thể (doanh thu, LNST, tài sản...). KHÔNG được trả lời "dữ liệu chưa được cung cấp" khi các bảng này có trong context.
+
 ## 🎯 NHẬN ĐỊNH TỔNG HỢP
 - Điểm mạnh của cổ phiếu
 - Điểm yếu / rủi ro cần lưu ý
@@ -71,7 +76,8 @@ NGUYÊN TẮC BẮT BUỘC:
 - Trả lời bằng tiếng Việt, dùng markdown và emoji để dễ đọc
 - Luôn dùng số liệu cụ thể từ dữ liệu được cung cấp
 - KHÔNG đưa ra khuyến nghị mua/bán tuyệt đối
-- Luôn nhắc nhở rủi ro và khuyến khích tự nghiên cứu thêm"""
+- Luôn nhắc nhở rủi ro và khuyến khích tự nghiên cứu thêm
+- Khi người dùng hỏi "phân tích cơ bản", "đọc báo cáo tài chính", "X tháng/quý gần nhất": hiểu là yêu cầu phân tích DỰA TRÊN các bảng quý đã có trong context; tự suy ra 6 tháng = 2 quý, 1 năm = 4 quý và trích dẫn số liệu từ bảng, không báo "chưa có dữ liệu" nếu bảng đã có."""
 
 _VN_STOCK_PATTERN = re.compile(r'\b([A-Z]{3,4})\b')
 _COMMON_WORDS = frozenset({
@@ -332,8 +338,9 @@ def chat_with_context(user_message: str, history: list[dict] | None = None) -> s
         context_str = "\n\n" + ("\n\n" + "─" * 60 + "\n\n").join(context_blocks)
         full_message = (
             f"{user_message}"
-            f"\n\n{'═' * 60}"
-            f"\n[DỮ LIỆU THỊ TRƯỜNG THỰC TẾ — Phân tích kỹ thuật + cơ bản]"
+            f"\n\n{'═' * 60}\n"
+            f"[DỮ LIỆU THỊ TRƯỜNG THỰC TẾ — Phân tích kỹ thuật + cơ bản]\n"
+            f"(Các bảng KẾT QUẢ KINH DOANH, BẢNG CÂN ĐỐI, DÒNG TIỀN bên dưới là báo cáo tài chính theo quý; dòng đầu = quý gần nhất. Khi hỏi '6 tháng gần nhất' = dùng 2 quý đầu, '12 tháng' = 4 quý đầu.)\n"
             f"{context_str}"
         )
     else:
